@@ -1,5 +1,30 @@
 const socket = io();
 
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const sfx = {
+  playTone: (freq, type, duration, vol) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  },
+  click: () => sfx.playTone(600, 'sine', 0.1, 0.05),
+  join: () => { sfx.playTone(400, 'square', 0.1, 0.02); setTimeout(()=>sfx.playTone(600, 'square', 0.15, 0.02), 100); },
+  start: () => { sfx.playTone(300, 'sawtooth', 0.1, 0.05); setTimeout(()=>sfx.playTone(400, 'sawtooth', 0.1, 0.05), 100); setTimeout(()=>sfx.playTone(500, 'sawtooth', 0.2, 0.05), 200); },
+  voting: () => { sfx.playTone(200, 'triangle', 0.2, 0.1); },
+  voteCast: () => { sfx.playTone(800, 'sine', 0.1, 0.05); },
+  success: () => { sfx.playTone(400, 'sine', 0.1, 0.05); setTimeout(()=>sfx.playTone(600, 'sine', 0.3, 0.05), 100); },
+  fail: () => { sfx.playTone(200, 'sawtooth', 0.3, 0.05); setTimeout(()=>sfx.playTone(150, 'sawtooth', 0.4, 0.05), 300); },
+  error: () => { sfx.playTone(150, 'square', 0.2, 0.05); }
+};
+
 const joinPanel = document.getElementById("joinPanel");
 const gamePanel = document.getElementById("gamePanel");
 const errorText = document.getElementById("errorText");
@@ -122,6 +147,7 @@ function tryAutoJoinFromSavedSession() {
 }
 
 function setError(msg) {
+  if (msg) sfx.error();
   errorText.textContent = msg || "";
 }
 
@@ -170,8 +196,10 @@ function renderVoteList() {
       btn.className = "voteBtn";
       btn.textContent = "Vote";
       btn.onclick = () => {
+        sfx.click();
         socket.emit("game:vote", { targetId: p.id }, (res) => {
           if (!res?.ok) setError(res?.message || "Could not vote.");
+          else sfx.voteCast();
         });
       };
       right.appendChild(btn);
@@ -268,6 +296,7 @@ function joinRoom(code, name) {
       setError(res?.message || "Unable to join room.");
       return;
     }
+    sfx.join();
     state.socketId = res.socketId;
     state.currentName = name;
     saveSession(res.code, { name: state.currentName, hostKey: res.hostKey || hostKey || null });
@@ -280,6 +309,7 @@ function joinRoom(code, name) {
 }
 
 createBtn.onclick = () => {
+  sfx.click();
   setError("");
   const name = nameInput.value.trim();
   socket.emit("room:create", { name }, (res) => {
@@ -287,6 +317,7 @@ createBtn.onclick = () => {
       setError(res?.message || "Unable to create room.");
       return;
     }
+    sfx.join();
     state.socketId = res.socketId;
     state.currentName = name;
     saveSession(res.code, { name: state.currentName, hostKey: res.hostKey || null });
@@ -299,6 +330,7 @@ createBtn.onclick = () => {
 };
 
 joinBtn.onclick = () => {
+  sfx.click();
   setError("");
   const name = nameInput.value.trim();
   const code = (state.prefilledCode || codeInput.value).trim().toUpperCase();
@@ -306,24 +338,28 @@ joinBtn.onclick = () => {
 };
 
 startBtn.onclick = () => {
+  sfx.click();
   socket.emit("game:start", {}, (res) => {
     if (!res?.ok) setError(res?.message || "Unable to start game.");
   });
 };
 
 goVotingBtn.onclick = () => {
+  sfx.click();
   socket.emit("game:goVoting", {}, (res) => {
     if (!res?.ok) setError(res?.message || "Unable to open voting.");
   });
 };
 
 revealBtn.onclick = () => {
+  sfx.click();
   socket.emit("game:reveal", {}, (res) => {
     if (!res?.ok) setError(res?.message || "Unable to reveal.");
   });
 };
 
 resetBtn.onclick = () => {
+  sfx.click();
   socket.emit("game:reset", {}, (res) => {
     if (!res?.ok) setError(res?.message || "Unable to reset.");
   });
@@ -335,7 +371,16 @@ socket.on("room:update", (room) => {
 });
 
 socket.on("game:state", (game) => {
+  const oldStage = state.game.stage;
   state.game = game;
+  if (oldStage !== game.stage) {
+    if (game.stage === "started") sfx.start();
+    else if (game.stage === "voting") sfx.voting();
+    else if (game.stage === "revealed") {
+      if (game.reveal && game.reveal.imposterCaught) sfx.success();
+      else sfx.fail();
+    }
+  }
   render();
 });
 
@@ -345,6 +390,7 @@ socket.on("connect", () => {
 });
 
 copyLinkBtn.onclick = async () => {
+  sfx.click();
   const text = shareLink.href;
   if (!text) return;
   try {
