@@ -3,6 +3,8 @@ const socket = io();
 const joinPanel = document.getElementById("joinPanel");
 const gamePanel = document.getElementById("gamePanel");
 const errorText = document.getElementById("errorText");
+const joinHint = document.getElementById("joinHint");
+const codeField = document.getElementById("codeField");
 
 const nameInput = document.getElementById("nameInput");
 const codeInput = document.getElementById("codeInput");
@@ -12,6 +14,9 @@ const joinBtn = document.getElementById("joinBtn");
 const roomCodeEl = document.getElementById("roomCode");
 const playerCountEl = document.getElementById("playerCount");
 const playersListEl = document.getElementById("playersList");
+const shareLine = document.getElementById("shareLine");
+const shareLink = document.getElementById("shareLink");
+const copyLinkBtn = document.getElementById("copyLinkBtn");
 
 const lobbyView = document.getElementById("lobbyView");
 const cardView = document.getElementById("cardView");
@@ -23,6 +28,7 @@ const cardTitle = document.getElementById("cardTitle");
 const cardBox = document.getElementById("cardBox");
 const goVotingBtn = document.getElementById("goVotingBtn");
 const voteList = document.getElementById("voteList");
+const votesLeftText = document.getElementById("votesLeftText");
 const revealBtn = document.getElementById("revealBtn");
 const revealMain = document.getElementById("revealMain");
 const revealSub = document.getElementById("revealSub");
@@ -32,7 +38,88 @@ const state = {
   socketId: null,
   room: null,
   game: { stage: "lobby" },
+  prefilledCode: null,
+  urlMode: "home",
+  currentName: "",
+  didAutoJoin: false,
 };
+
+function sessionStorageKey(roomCode) {
+  return `imposter:session:${String(roomCode || "").toUpperCase()}`;
+}
+
+function saveSession(roomCode, data) {
+  if (!roomCode) return;
+  localStorage.setItem(sessionStorageKey(roomCode), JSON.stringify(data || {}));
+}
+
+function loadSession(roomCode) {
+  if (!roomCode) return null;
+  try {
+    const raw = localStorage.getItem(sessionStorageKey(roomCode));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseRoomTargetFromUrl() {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const prefix = parts[0] ? parts[0].toLowerCase() : "";
+  if (parts.length >= 2 && (prefix === "host" || prefix === "room")) {
+    return { code: parts[1].toUpperCase(), mode: prefix };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const queryCode = params.get("room");
+  if (queryCode) {
+    return { code: queryCode.toUpperCase(), mode: "room" };
+  }
+  return { code: null, mode: "home" };
+}
+
+function buildHostUrl(code) {
+  const roomCode = String(code || "").trim().toUpperCase();
+  return `${window.location.origin}/host/${roomCode}`;
+}
+
+function buildPlayerUrl(code) {
+  const roomCode = String(code || "").trim().toUpperCase();
+  return `${window.location.origin}/room/${roomCode}`;
+}
+
+function applyPrefilledCodeUI() {
+  const code = state.prefilledCode;
+  if (!code) return;
+  const saved = loadSession(code);
+
+  codeInput.value = code;
+  codeInput.readOnly = true;
+  codeField.classList.add("hidden");
+  createBtn.classList.add("hidden");
+  if (saved?.name) {
+    nameInput.value = String(saved.name).slice(0, 24);
+  }
+  if (state.urlMode === "host") {
+    joinHint.textContent = `Host room ${code}. Enter your name to continue.`;
+  } else {
+    joinHint.textContent = `Enter your name to join room ${code}.`;
+  }
+  joinBtn.textContent = "Enter Game";
+}
+
+function tryAutoJoinFromSavedSession() {
+  if (state.didAutoJoin) return;
+  if (!state.prefilledCode) return;
+  if (!socket.connected) return;
+
+  const code = state.prefilledCode;
+  const saved = loadSession(code);
+  if (!saved?.name) return;
+
+  state.didAutoJoin = true;
+  nameInput.value = String(saved.name).slice(0, 24);
+  joinRoom(code, String(saved.name).slice(0, 24));
+}
 
 function setError(msg) {
   errorText.textContent = msg || "";
@@ -66,6 +153,9 @@ function renderPlayers() {
 function renderVoteList() {
   voteList.innerHTML = "";
   const voteMap = state.game.votes || {};
+  const votesCast = Object.values(voteMap).reduce((sum, count) => sum + count, 0);
+  const votesLeft = Math.max(0, state.room.players.length - votesCast);
+  votesLeftText.textContent = `${votesLeft} vote${votesLeft === 1 ? "" : "s"} left`;
 
   state.room.players.forEach((p) => {
     const li = document.createElement("li");
@@ -132,6 +222,10 @@ function render() {
 
   roomCodeEl.textContent = state.room.code;
   playerCountEl.textContent = `${state.room.players.length}/${state.room.maxPlayers}`;
+  const playerUrl = buildPlayerUrl(state.room.code);
+  shareLink.href = playerUrl;
+  shareLink.textContent = playerUrl;
+  shareLine.classList.remove("hidden");
 
   renderPlayers();
 
@@ -165,6 +259,26 @@ function render() {
   }
 }
 
+function joinRoom(code, name) {
+  const saved = loadSession(code);
+  const hostKey = state.urlMode === "host" ? saved?.hostKey || null : null;
+
+  socket.emit("room:join", { name, code, hostKey }, (res) => {
+    if (!res?.ok) {
+      setError(res?.message || "Unable to join room.");
+      return;
+    }
+    state.socketId = res.socketId;
+    state.currentName = name;
+    saveSession(res.code, { name: state.currentName, hostKey: res.hostKey || hostKey || null });
+    if (res.code) {
+      const newUrl = state.urlMode === "host" ? `/host/${res.code}` : `/room/${res.code}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+    showJoinedUI();
+  });
+}
+
 createBtn.onclick = () => {
   setError("");
   const name = nameInput.value.trim();
@@ -174,6 +288,12 @@ createBtn.onclick = () => {
       return;
     }
     state.socketId = res.socketId;
+    state.currentName = name;
+    saveSession(res.code, { name: state.currentName, hostKey: res.hostKey || null });
+    if (res.code) {
+      const newUrl = `/host/${res.code}`;
+      window.history.replaceState({}, "", newUrl);
+    }
     showJoinedUI();
   });
 };
@@ -181,15 +301,8 @@ createBtn.onclick = () => {
 joinBtn.onclick = () => {
   setError("");
   const name = nameInput.value.trim();
-  const code = codeInput.value.trim().toUpperCase();
-  socket.emit("room:join", { name, code }, (res) => {
-    if (!res?.ok) {
-      setError(res?.message || "Unable to join room.");
-      return;
-    }
-    state.socketId = res.socketId;
-    showJoinedUI();
-  });
+  const code = (state.prefilledCode || codeInput.value).trim().toUpperCase();
+  joinRoom(code, name);
 };
 
 startBtn.onclick = () => {
@@ -228,4 +341,40 @@ socket.on("game:state", (game) => {
 
 socket.on("connect", () => {
   state.socketId = socket.id;
+  tryAutoJoinFromSavedSession();
 });
+
+copyLinkBtn.onclick = async () => {
+  const text = shareLink.href;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    copyLinkBtn.textContent = "Copied";
+    setTimeout(() => {
+      copyLinkBtn.textContent = "Copy";
+    }, 1200);
+  } catch {
+    setError("Copy failed. Please copy the link manually.");
+  }
+};
+
+nameInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  if (state.prefilledCode) {
+    joinBtn.click();
+    return;
+  }
+  if (codeInput.value.trim()) {
+    joinBtn.click();
+    return;
+  }
+  createBtn.click();
+});
+
+{
+  const parsed = parseRoomTargetFromUrl();
+  state.prefilledCode = parsed.code;
+  state.urlMode = parsed.mode;
+}
+applyPrefilledCodeUI();
+tryAutoJoinFromSavedSession();

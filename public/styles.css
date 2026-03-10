@@ -67,6 +67,11 @@ button {
   background: #ecece5;
 }
 
+button.small {
+  font-size: 12px;
+  padding: 5px 9px;
+}
+
 button.primary {
   background: var(--primary);
   color: white;
@@ -176,6 +181,16 @@ button:disabled {
 .error {
   color: #b42318;
   min-height: 20px;
+}
+
+.shareLine {
+  margin: 12px 0 0;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.shareLine a {
+  color: #0c5f58;
 }
 
 .revealMain {

@@ -37,6 +37,10 @@ function chooseImposter(playerIds) {
   return playerIds[Math.floor(Math.random() * playerIds.length)];
 }
 
+function generateHostKey() {
+  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+}
+
 const rooms = new Map();
 
 function roomView(room) {
@@ -96,6 +100,7 @@ function removePlayerFromRoom(room, socketId) {
   if (room.hostId === socketId) {
     const nextHost = room.players.values().next().value;
     room.hostId = nextHost ? nextHost.id : null;
+    room.hostName = nextHost ? nextHost.name : null;
   }
 }
 
@@ -124,6 +129,8 @@ io.on("connection", (socket) => {
     const room = {
       code,
       hostId: socket.id,
+      hostKey: generateHostKey(),
+      hostName: trimmedName,
       stage: "lobby",
       players: new Map(),
       word: null,
@@ -139,11 +146,11 @@ io.on("connection", (socket) => {
     socket.join(code);
     socket.data.roomCode = code;
 
-    cb?.({ ok: true, code, socketId: socket.id });
+    cb?.({ ok: true, code, socketId: socket.id, hostKey: room.hostKey });
     emitRoom(code);
   });
 
-  socket.on("room:join", ({ code, name }, cb) => {
+  socket.on("room:join", ({ code, name, hostKey }, cb) => {
     const roomCode = String(code || "").trim().toUpperCase();
     const trimmedName = String(name || "").trim().slice(0, 24);
 
@@ -168,12 +175,31 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (!room.hostName && room.hostId && room.players.has(room.hostId)) {
+      room.hostName = room.players.get(room.hostId).name;
+    }
+
     room.players.set(socket.id, { id: socket.id, name: trimmedName });
+    const canReclaimWithKey = hostKey && room.hostKey && hostKey === room.hostKey;
+    const canReclaimLegacyByName =
+      !room.hostKey && room.hostName && trimmedName.toLowerCase() === room.hostName.toLowerCase();
+    if (canReclaimWithKey || canReclaimLegacyByName) {
+      room.hostId = socket.id;
+      room.hostName = trimmedName;
+      if (!room.hostKey) {
+        room.hostKey = generateHostKey();
+      }
+    }
 
     socket.join(roomCode);
     socket.data.roomCode = roomCode;
 
-    cb?.({ ok: true, code: roomCode, socketId: socket.id });
+    cb?.({
+      ok: true,
+      code: roomCode,
+      socketId: socket.id,
+      hostKey: room.hostId === socket.id ? room.hostKey : null,
+    });
     emitRoom(roomCode);
   });
 
@@ -350,6 +376,12 @@ io.on("connection", (socket) => {
     emitRoom(roomCode);
     cleanupRoom(roomCode);
   });
+});
+
+const indexFilePath = path.join(__dirname, "public", "index.html");
+
+app.get(["/host/:code", "/host/:code/", "/room/:code", "/room/:code/"], (_req, res) => {
+  res.sendFile(indexFilePath);
 });
 
 app.use(express.static(path.join(__dirname, "public")));

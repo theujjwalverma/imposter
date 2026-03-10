@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Imposter Game</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="app">
       <section class="panel" id="joinPanel">
         <h1>Imposter Game</h1>
-        <p>Create a room or join one with code.</p>
+        <p id="joinHint">Create a room or join one with code.</p>
 
         <div class="field">
           <label for="nameInput">Your Name</label>
@@ -23,7 +23,7 @@
 
         <div class="divider">OR</div>
 
-        <div class="field">
+        <div class="field" id="codeField">
           <label for="codeInput">Room Code</label>
           <input id="codeInput" maxlength="6" placeholder="7XH92K" />
         </div>
@@ -44,6 +44,11 @@
             <h2 id="playerCount">0/100</h2>
           </div>
         </header>
+        <p class="shareLine hidden" id="shareLine">
+          Player Link:
+          <a id="shareLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+          <button id="copyLinkBtn" class="small">Copy</button>
+        </p>
 
         <section id="lobbyView" class="view hidden">
           <h3>Lobby</h3>
@@ -65,6 +70,7 @@
 
         <section id="votingView" class="view hidden">
           <h3>Who is the imposter?</h3>
+          <p id="votesLeftText" class="muted"></p>
           <ul id="voteList" class="voteList"></ul>
           <div class="row">
             <button id="revealBtn" class="danger hidden">Reveal Result</button>
@@ -83,6 +89,6 @@
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+    <script src="/app.js"></script>
   </body>
 </html>
