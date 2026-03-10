@@ -1,0 +1,195 @@
+:root {
+  --bg: #f7f7f3;
+  --panel: #fffef6;
+  --text: #1f1f1f;
+  --muted: #5e5e5e;
+  --line: #d8d8d2;
+  --primary: #0f766e;
+  --danger: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top, #e9f8f6, var(--bg));
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 14px 50px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  text-transform: uppercase;
+}
+
+#nameInput {
+  text-transform: none;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 15px;
+  cursor: pointer;
+  background: #ecece5;
+}
+
+button.primary {
+  background: var(--primary);
+  color: white;
+}
+
+button.danger {
+  background: var(--danger);
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.divider {
+  margin: 14px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.header h2 {
+  margin: 2px 0 0;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+.playersWrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.playersList,
+.voteList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.playersList li,
+.voteList li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #ecece5;
+}
+
+.playersList li:last-child,
+.voteList li:last-child {
+  border-bottom: 0;
+}
+
+.badge {
+  background: #e7faf8;
+  color: #0c5f58;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.view {
+  margin-top: 14px;
+}
+
+.card {
+  margin-top: 8px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 700;
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card.imposter {
+  background: #fff2f0;
+  border-color: #f2c8c2;
+  color: #8a1f1b;
+}
+
+.error {
+  color: #b42318;
+  min-height: 20px;
+}
+
+.revealMain {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.hidden {
+  display: none;
+}
+
+.voteBtn {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
