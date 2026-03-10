@@ -62,6 +62,9 @@ const revealSub = document.getElementById("revealSub");
 const resetBtn = document.getElementById("resetBtn");
 const footerLine = document.getElementById("footerLine");
 const footerRevealBtn = document.getElementById("footerRevealBtn");
+const cursorSplashRoot = document.getElementById("cursorSplashRoot");
+const cursorDot = document.getElementById("cursorDot");
+const cursorRing = document.getElementById("cursorRing");
 
 const state = {
   socketId: null,
@@ -452,3 +455,72 @@ footerRevealBtn.onclick = () => {
   footerLine.textContent = "Somebody in this room vibe coded this game. Guess who? The Imposter Ujjwal Verma";
   footerRevealBtn.classList.add("hidden");
 };
+
+function initSplashCursor() {
+  const isTouch = window.matchMedia("(pointer: coarse)").matches;
+  if (isTouch || !cursorSplashRoot || !cursorDot || !cursorRing) return;
+
+  document.body.classList.add("splashCursorEnabled");
+
+  let mx = window.innerWidth / 2;
+  let my = window.innerHeight / 2;
+  let rx = mx;
+  let ry = my;
+  let lastParticleAt = 0;
+  let visible = false;
+
+  function setCursorVisibility(show) {
+    visible = show;
+    const opacity = show ? "1" : "0";
+    cursorDot.style.opacity = opacity;
+    cursorRing.style.opacity = opacity;
+  }
+
+  setCursorVisibility(false);
+
+  function spawnParticle(x, y, spread = 14) {
+    const p = document.createElement("span");
+    p.className = "cursorParticle";
+    const ox = (Math.random() - 0.5) * spread;
+    const oy = (Math.random() - 0.5) * spread;
+    p.style.left = `${x + ox}px`;
+    p.style.top = `${y + oy}px`;
+    cursorSplashRoot.appendChild(p);
+    p.addEventListener("animationend", () => p.remove(), { once: true });
+  }
+
+  document.addEventListener("mousemove", (event) => {
+    mx = event.clientX;
+    my = event.clientY;
+    if (!visible) setCursorVisibility(true);
+
+    const now = performance.now();
+    if (now - lastParticleAt > 28) {
+      lastParticleAt = now;
+      spawnParticle(mx, my, 10);
+    }
+  });
+
+  document.addEventListener("mousedown", (event) => {
+    for (let i = 0; i < 6; i += 1) {
+      spawnParticle(event.clientX, event.clientY, 24);
+    }
+  });
+
+  document.addEventListener("mouseleave", () => setCursorVisibility(false));
+  document.addEventListener("mouseenter", () => setCursorVisibility(true));
+
+  function tick() {
+    rx += (mx - rx) * 0.18;
+    ry += (my - ry) * 0.18;
+    cursorDot.style.left = `${mx}px`;
+    cursorDot.style.top = `${my}px`;
+    cursorRing.style.left = `${rx}px`;
+    cursorRing.style.top = `${ry}px`;
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+}
+
+initSplashCursor();
