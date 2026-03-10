@@ -37,6 +37,23 @@ function chooseImposter(playerIds) {
   return playerIds[Math.floor(Math.random() * playerIds.length)];
 }
 
+function chooseImposters(playerIds, count) {
+  const shuffled = [...playerIds];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+}
+
+function getImposterIds(room) {
+  if (Array.isArray(room.imposterIds) && room.imposterIds.length > 0) {
+    return room.imposterIds;
+  }
+  if (room.imposterId) return [room.imposterId];
+  return [];
+}
+
 function generateHostKey() {
   return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
@@ -54,6 +71,7 @@ function roomView(room) {
       isHost: p.id === room.hostId,
     })),
     maxPlayers: MAX_PLAYERS,
+    imposterCount: room.imposterCount,
     reveal: room.reveal,
   };
 }
@@ -62,9 +80,10 @@ function getPlayerRoleData(room, socketId) {
   if (room.stage === "lobby") return { stage: "lobby" };
 
   if (room.stage === "started" || room.stage === "voting" || room.stage === "revealed") {
+    const imposterIds = getImposterIds(room);
     return {
       stage: room.stage,
-      card: room.imposterId === socketId ? "IMPOSTER" : room.word,
+      card: imposterIds.includes(socketId) ? "IMPOSTER" : room.word,
       hasVoted: room.votesByVoter.has(socketId),
       votes: Object.fromEntries(room.votesByTarget.entries()),
       reveal: room.reveal,
@@ -134,6 +153,8 @@ io.on("connection", (socket) => {
       stage: "lobby",
       players: new Map(),
       word: null,
+      imposterCount: 1,
+      imposterIds: [],
       imposterId: null,
       votesByVoter: new Map(),
       votesByTarget: new Map(),
@@ -203,6 +224,37 @@ io.on("connection", (socket) => {
     emitRoom(roomCode);
   });
 
+  socket.on("game:setImposterCount", ({ count }, cb) => {
+    const roomCode = socket.data.roomCode;
+    const room = roomCode ? rooms.get(roomCode) : null;
+
+    if (!room) {
+      cb?.({ ok: false, message: "Room not found." });
+      return;
+    }
+
+    if (room.hostId !== socket.id) {
+      cb?.({ ok: false, message: "Only host can change imposter count." });
+      return;
+    }
+
+    if (room.stage !== "lobby") {
+      cb?.({ ok: false, message: "Change count only in lobby." });
+      return;
+    }
+
+    const maxAllowed = Math.max(1, Math.min(6, room.players.size - 1));
+    const nextCount = Number(count);
+    if (!Number.isInteger(nextCount) || nextCount < 1 || nextCount > maxAllowed) {
+      cb?.({ ok: false, message: `Imposter count must be between 1 and ${maxAllowed}.` });
+      return;
+    }
+
+    room.imposterCount = nextCount;
+    cb?.({ ok: true });
+    emitRoom(roomCode);
+  });
+
   socket.on("game:start", (_, cb) => {
     const roomCode = socket.data.roomCode;
     const room = roomCode ? rooms.get(roomCode) : null;
@@ -222,8 +274,12 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const maxAllowed = Math.max(1, Math.min(6, room.players.size - 1));
+    room.imposterCount = Math.min(Math.max(room.imposterCount || 1, 1), maxAllowed);
+
     room.word = randomWord();
-    room.imposterId = chooseImposter(Array.from(room.players.keys()));
+    room.imposterIds = chooseImposters(Array.from(room.players.keys()), room.imposterCount);
+    room.imposterId = room.imposterIds[0] || null;
     room.stage = "started";
     room.votesByVoter.clear();
     room.votesByTarget.clear();
@@ -297,11 +353,6 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.hostId !== socket.id) {
-      cb?.({ ok: false, message: "Only host can reveal." });
-      return;
-    }
-
     if (room.stage !== "voting") {
       cb?.({ ok: false, message: "Reveal is allowed after voting starts." });
       return;
@@ -316,13 +367,16 @@ io.on("connection", (socket) => {
         topTargetId = targetId;
       }
     }
+    const imposterIds = getImposterIds(room);
+    const imposterNames = imposterIds.map((id) => room.players.get(id)?.name || "Unknown");
 
     room.reveal = {
-      imposterId: room.imposterId,
+      imposterIds,
+      imposterNames,
       votedOutId: topTargetId,
-      imposterName: room.players.get(room.imposterId)?.name || "Unknown",
+      imposterName: imposterNames[0] || "Unknown",
       votedOutName: topTargetId ? room.players.get(topTargetId)?.name || "Unknown" : null,
-      imposterCaught: topTargetId === room.imposterId,
+      imposterCaught: !!topTargetId && imposterIds.includes(topTargetId),
     };
     room.stage = "revealed";
 
@@ -346,6 +400,7 @@ io.on("connection", (socket) => {
 
     room.stage = "lobby";
     room.word = null;
+    room.imposterIds = [];
     room.imposterId = null;
     room.votesByVoter.clear();
     room.votesByTarget.clear();
@@ -367,6 +422,7 @@ io.on("connection", (socket) => {
     if (room.stage !== "lobby" && room.players.size < 3) {
       room.stage = "lobby";
       room.word = null;
+      room.imposterIds = [];
       room.imposterId = null;
       room.votesByVoter.clear();
       room.votesByTarget.clear();

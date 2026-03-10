@@ -42,6 +42,8 @@ const playersListEl = document.getElementById("playersList");
 const shareLine = document.getElementById("shareLine");
 const shareLink = document.getElementById("shareLink");
 const copyLinkBtn = document.getElementById("copyLinkBtn");
+const imposterCountRow = document.getElementById("imposterCountRow");
+const imposterCountSelect = document.getElementById("imposterCountSelect");
 
 const lobbyView = document.getElementById("lobbyView");
 const cardView = document.getElementById("cardView");
@@ -58,6 +60,8 @@ const revealBtn = document.getElementById("revealBtn");
 const revealMain = document.getElementById("revealMain");
 const revealSub = document.getElementById("revealSub");
 const resetBtn = document.getElementById("resetBtn");
+const footerLine = document.getElementById("footerLine");
+const footerRevealBtn = document.getElementById("footerRevealBtn");
 
 const state = {
   socketId: null,
@@ -235,13 +239,14 @@ function renderReveal() {
     return;
   }
 
-  revealMain.textContent = `The imposter was ${reveal.imposterName}`;
+  const names = Array.isArray(reveal.imposterNames) ? reveal.imposterNames : [reveal.imposterName];
+  revealMain.textContent = reveal.imposterCaught ? "Players Win" : "Imposters Win";
   if (!reveal.votedOutName) {
-    revealSub.textContent = "No votes were cast.";
+    revealSub.textContent = `No votes were cast. Imposters: ${names.join(", ")}`;
   } else if (reveal.imposterCaught) {
-    revealSub.textContent = `Players voted out ${reveal.votedOutName}. Imposter caught.`;
+    revealSub.textContent = `Players voted out ${reveal.votedOutName}. Caught an imposter. All imposters: ${names.join(", ")}`;
   } else {
-    revealSub.textContent = `Players voted out ${reveal.votedOutName}. Imposter escaped.`;
+    revealSub.textContent = `Players voted out ${reveal.votedOutName}. No imposter caught. All imposters: ${names.join(", ")}`;
   }
 }
 
@@ -260,8 +265,18 @@ function render() {
   const host = meIsHost();
   startBtn.classList.toggle("hidden", !host);
   goVotingBtn.classList.toggle("hidden", !host);
-  revealBtn.classList.toggle("hidden", !host);
+  revealBtn.classList.toggle("hidden", false);
   resetBtn.classList.toggle("hidden", !host);
+  imposterCountRow.classList.toggle("hidden", !host);
+
+  const maxImposters = Math.max(1, Math.min(6, state.room.players.length - 1));
+  for (const option of imposterCountSelect.options) {
+    option.disabled = Number(option.value) > maxImposters;
+  }
+  const roomCount = Number(state.room.imposterCount || 1);
+  const safeCount = Math.min(Math.max(roomCount, 1), maxImposters);
+  imposterCountSelect.value = String(safeCount);
+  imposterCountSelect.disabled = !host || state.room.stage !== "lobby";
 
   hideAllViews();
 
@@ -341,6 +356,14 @@ startBtn.onclick = () => {
   sfx.click();
   socket.emit("game:start", {}, (res) => {
     if (!res?.ok) setError(res?.message || "Unable to start game.");
+  });
+};
+
+imposterCountSelect.onchange = () => {
+  if (!meIsHost()) return;
+  const count = Number(imposterCountSelect.value);
+  socket.emit("game:setImposterCount", { count }, (res) => {
+    if (!res?.ok) setError(res?.message || "Unable to set imposter count.");
   });
 };
 
@@ -424,3 +447,8 @@ nameInput.addEventListener("keydown", (event) => {
 }
 applyPrefilledCodeUI();
 tryAutoJoinFromSavedSession();
+
+footerRevealBtn.onclick = () => {
+  footerLine.textContent = "Somebody in this room vibe coded this game. Guess who? The Imposter Ujjwal Verma";
+  footerRevealBtn.classList.add("hidden");
+};

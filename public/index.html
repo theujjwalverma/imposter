@@ -52,6 +52,17 @@
 
         <section id="lobbyView" class="view hidden">
           <h3>Lobby</h3>
+          <div class="row hidden" id="imposterCountRow">
+            <label for="imposterCountSelect">Imposters</label>
+            <select id="imposterCountSelect">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
           <div class="playersWrap">
             <ul id="playersList" class="playersList"></ul>
           </div>
@@ -86,6 +97,10 @@
           </div>
         </section>
       </section>
+      <footer class="appFooter">
+        <span id="footerLine">Somebody in this room vibe coded this game. Guess who?</span>
+        <button id="footerRevealBtn" class="footerRevealBtn" type="button">Reveal!</button>
+      </footer>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
